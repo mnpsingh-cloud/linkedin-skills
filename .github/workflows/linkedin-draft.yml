@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "0 3 */2 * *"
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   draft:
     runs-on: ubuntu-latest

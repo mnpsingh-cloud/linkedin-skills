@@ -74,7 +74,7 @@ text = result["candidates"][0]["content"]["parts"][0]["text"]
 
 if not text:
     raise RuntimeError("Gemini returned no draft")
-          print("\n===== LINKEDIN DRAFT =====\n")
-          print(text)
-          print("\n===== END DRAFT =====\n")
-          PY
+
+print("\n===== LINKEDIN DRAFT =====\n")
+print(text)
+print("\n===== END DRAFT =====\n")

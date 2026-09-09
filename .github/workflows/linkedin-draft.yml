@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 3 */2 * *"
+
 jobs:
   draft:
     runs-on: ubuntu-latest
@@ -30,21 +31,73 @@ jobs:
 
           Follow the LinkedIn Post Writer skill below carefully.
 
+          MY VERIFIED CAREER BACKGROUND:
+
+          EARLY CAREER — SMARTWORLD DEVELOPERS:
+          - I joined Smartworld Developers in September 2022.
+          - I spent approximately 1.5 years at Smartworld Developers.
+          - During my first year, I worked in customer care/call center operations.
+          - I handled client queries including TDS and possession-date issues.
+          - I escalated issues and followed up with backend teams for resolution.
+          - During my next 6 months at Smartworld, I worked in CRM front-end operations.
+          - I met clients, managed queries, facilitated BBA processes and property transfers.
+          - At Smartworld Orchard, I handled 400+ residential clients and 80+ commercial shops.
+          - My average CSAT was 98%+ over 6 months.
+
+          CURRENT ROLE — PYRAMID INFRATECH:
+          - I joined Pyramid Infratech in March 2024.
+          - I work in a customer-facing post-sales/CRM environment.
+          - I manage customer queries and coordinate resolutions with relevant internal teams.
+          - I follow up with customers regarding payments and outstanding dues.
+          - I facilitate home-loan processes and coordinate loan disbursements.
+          - I manage customer documentation and related processes.
+          - I coordinate possession and handover activities.
+          - I coordinate with customers and multiple internal and external stakeholders
+            to move cases toward resolution and project handover.
+          - I have helped hand over/deliver 7 housing projects.
+          - Each of these housing projects averaged 750+ flats.
+          - I have also worked on 3 plotted colonies under Deen Dayal Jan Awas Yojana.
+
+          CAREER DIRECTION:
+          - My experience is strongly customer-facing and business-oriented.
+          - My transferable strengths include customer relationship management,
+            issue resolution, stakeholder coordination, communication, CRM operations,
+            documentation, payment follow-up, process coordination and post-sales support.
+          - I am transitioning toward higher-value Customer Success, SaaS, B2B,
+            and business roles.
+          - Do not portray me as a real-estate salesperson.
+          - Do not falsely claim that I have SaaS experience.
+          - Instead, identify credible transferable lessons from my existing experience.
+
           IMPORTANT:
-          - Never invent or assume statistics, percentages, customer counts, revenue figures, time periods, or other numerical claims.
-          - Write for a professional who is transitioning toward higher-value customer success,
-            SaaS, B2B, and business roles.
+          - Use my actual career background as context.
+          - Do not invent responsibilities, achievements, employers, job titles,
+            clients, expertise, or results.
+          - Never invent or assume statistics, percentages, customer counts,
+            revenue figures, time periods, or other numerical claims.
+          - Only use numbers explicitly provided in this prompt or the skill material.
+          - Do not create fictional examples presented as my personal experience.
+          - Do not falsely claim SaaS, technology, or software experience.
           - Do not position me as a real-estate salesperson.
+          - Translate relevant experience into transferable Customer Success,
+            B2B, client-management, operations, communication, and problem-solving lessons.
           - Produce ONE LinkedIn post draft.
-          - The post must be useful and credible, not generic motivational content.
+          - The post must be useful, specific and credible.
+          - Avoid generic motivational content.
           - This is a DRAFT ONLY. Do not publish anything.
 
           SKILL:
           {skill}
 
           TASK:
-          Write a LinkedIn post about a practical lesson professionals can learn from
-          working with customers and business teams.
+          Write one LinkedIn post based on a practical lesson from my actual
+          customer-facing and business experience.
+
+          The post should strengthen my professional positioning for
+          Customer Success, SaaS, B2B and business roles while remaining completely
+          truthful to my background.
+
+          Do not mention this prompt, these instructions, or the fact that AI was used.
           """
 
           data = {
@@ -86,4 +139,30 @@ jobs:
           print("\n===== LINKEDIN DRAFT =====\n")
           print(text)
           print("\n===== END DRAFT =====\n")
+
+          with open("linkedin_draft.txt", "w", encoding="utf-8") as f:
+              f.write(text)
           PY
+
+      - name: Create approval issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const text = fs.readFileSync('linkedin_draft.txt', 'utf8');
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'LinkedIn Draft — Approval Required',
+              body: `## LinkedIn Draft
+
+            ${text}
+
+            ---
+
+            **Approval:** Add the \`approved\` label to this issue when you want this post published.`,
+              labels: ['approval-required']
+            });
+
+            console.log(`Approval issue created: ${issue.data.html_url}`);

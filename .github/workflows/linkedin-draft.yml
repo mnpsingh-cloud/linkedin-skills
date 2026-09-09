@@ -1,0 +1,74 @@
+name: LinkedIn Draft
+
+on:
+  workflow_dispatch:
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate LinkedIn draft
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          with open("skills/linkedin-post-writer/SKILL.md", "r", encoding="utf-8") as f:
+              skill = f.read()
+
+          prompt = f"""
+          You are my LinkedIn content writer.
+
+          Follow the LinkedIn Post Writer skill below carefully.
+
+          IMPORTANT:
+          - Do not invent achievements, employers, job titles, numbers, or expertise.
+          - Write for a professional who is transitioning toward higher-value customer success,
+            SaaS, B2B, and business roles.
+          - Do not position me as a real-estate salesperson.
+          - Produce ONE LinkedIn post draft.
+          - The post must be useful and credible, not generic motivational content.
+          - This is a DRAFT ONLY. Do not publish anything.
+
+          SKILL:
+          {skill}
+
+          TASK:
+          Write a LinkedIn post about a practical lesson professionals can learn from
+          working with customers and business teams.
+          """
+
+          data = {
+              "model": "gpt-5.6-luna",
+              "input": prompt
+          }
+
+          request = urllib.request.Request(
+              "https://api.openai.com/v1/responses",
+              data=json.dumps(data).encode("utf-8"),
+              headers={
+                  "Authorization": "Bearer " + os.environ["OPENAI_API_KEY"],
+                  "Content-Type": "application/json"
+              },
+              method="POST"
+          )
+
+          with urllib.request.urlopen(request) as response:
+              result = json.load(response)
+
+          text = result.get("output_text", "")
+
+          if not text:
+              raise RuntimeError("OpenAI returned no draft.")
+
+          print("\n===== LINKEDIN DRAFT =====\n")
+          print(text)
+          print("\n===== END DRAFT =====\n")
+          PY

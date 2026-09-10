@@ -24,10 +24,16 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import random
+          import time
           import urllib.request
           import urllib.error
 
-          with open("skills/linkedin-post-writer/SKILL.md", "r", encoding="utf-8") as f:
+          with open(
+              "skills/linkedin-post-writer/SKILL.md",
+              "r",
+              encoding="utf-8"
+          ) as f:
               skill = f.read()
 
           prompt = f"""
@@ -116,48 +122,157 @@ jobs:
               ]
           }
 
-          request = urllib.request.Request(
-              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
-              data=json.dumps(data).encode("utf-8"),
-              headers={
-                  "x-goog-api-key": os.environ["GEMINI_API_KEY"],
-                  "Content-Type": "application/json"
-              },
-              method="POST"
+          url = (
+              "https://generativelanguage.googleapis.com/"
+              "v1beta/models/gemini-3.7-flash:generateContent"
           )
 
+          def call_gemini(max_retries=5):
+              for attempt in range(max_retries + 1):
+
+                  request = urllib.request.Request(
+                      url,
+                      data=json.dumps(data).encode("utf-8"),
+                      headers={
+                          "x-goog-api-key": os.environ["GEMINI_API_KEY"],
+                          "Content-Type": "application/json"
+                      },
+                      method="POST"
+                  )
+
+                  try:
+                      with urllib.request.urlopen(
+                          request,
+                          timeout=120
+                      ) as response:
+                          return json.load(response)
+
+                  except urllib.error.HTTPError as e:
+                      error_body = e.read().decode(
+                          "utf-8",
+                          errors="replace"
+                      )
+
+                      print(
+                          f"Gemini HTTP {e.code} "
+                          f"(attempt {attempt + 1}/{max_retries + 1})"
+                      )
+                      print(error_body)
+
+                      # Retry only temporary server/rate-limit errors.
+                      if e.code in (408, 429, 500, 502, 503, 504):
+                          if attempt < max_retries:
+
+                              delay = min(
+                                  60,
+                                  (2 ** attempt) + random.uniform(0, 1)
+                              )
+
+                              print(
+                                  f"Temporary Gemini error. "
+                                  f"Retrying in {delay:.1f} seconds..."
+                              )
+
+                              time.sleep(delay)
+                              continue
+
+                      raise
+
+                  except urllib.error.URLError as e:
+                      print(f"Network error: {e}")
+
+                      if attempt < max_retries:
+                          delay = min(
+                              60,
+                              (2 ** attempt) + random.uniform(0, 1)
+                          )
+
+                          print(
+                              f"Retrying network request in "
+                              f"{delay:.1f} seconds..."
+                          )
+
+                          time.sleep(delay)
+                          continue
+
+                      raise
+
+          result = call_gemini()
+
           try:
-              with urllib.request.urlopen(request) as response:
-                  result = json.load(response)
-          except urllib.error.HTTPError as e:
-              error_body = e.read().decode("utf-8", errors="replace")
-              print("Gemini API error:")
-              print(error_body)
-              raise
+              text = result["candidates"][0]["content"]["parts"][0]["text"]
+          except (KeyError, IndexError, TypeError) as e:
+              print("Unexpected Gemini response:")
+              print(json.dumps(result, indent=2))
+              raise RuntimeError(
+                  "Gemini returned an unexpected response"
+              ) from e
 
-          text = result["candidates"][0]["content"]["parts"][0]["text"]
-
-          if not text:
-              raise RuntimeError("Gemini returned no draft")
+          if not text.strip():
+              raise RuntimeError("Gemini returned an empty draft")
 
           print("\n===== LINKEDIN DRAFT =====\n")
           print(text)
           print("\n===== END DRAFT =====\n")
 
-          with open("linkedin_draft.txt", "w", encoding="utf-8") as f:
+          with open(
+              "linkedin_draft.txt",
+              "w",
+              encoding="utf-8"
+          ) as f:
               f.write(text)
-          PY
 
       - name: Create approval issue
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const text = fs.readFileSync('linkedin_draft.txt', 'utf8');
+
+            const text = fs.readFileSync(
+              'linkedin_draft.txt',
+              'utf8'
+            );
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            async function ensureLabel(name, color, description) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner,
+                  repo,
+                  name
+                });
+              } catch (error) {
+                if (error.status === 404) {
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name,
+                    color,
+                    description
+                  });
+                } else {
+                  throw error;
+                }
+              }
+            }
+
+            await ensureLabel(
+              'approval-required',
+              '1f6feb',
+              'LinkedIn draft waiting for approval'
+            );
+
+            await ensureLabel(
+              'approved',
+              '2da44e',
+              'Approved for LinkedIn publishing'
+            );
 
             const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               title: 'LinkedIn Draft — Approval Required',
               body: `## LinkedIn Draft
 
@@ -165,8 +280,14 @@ jobs:
 
             ---
 
-            **Approval:** Add the \`approved\` label to this issue when you want this post published.`,
+            ## Approval
+
+            Add the \`approved\` label to this issue when you want this post published.
+
+            **Do not add the approved label until you have reviewed the draft.**`,
               labels: ['approval-required']
             });
 
-            console.log(`Approval issue created: ${issue.data.html_url}`);
+            console.log(
+              `Approval issue created: ${issue.data.html_url}`
+            );
